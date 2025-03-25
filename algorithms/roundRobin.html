@@ -3,14 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>
-      CPU Scheduling Simulator (Priority Scheduling - Preemptive) with Video
-      Controls
-    </title>
+    <title>CPU Scheduling Simulator (Round Robin) with Video Controls</title>
     <style>
       body {
-        font-family: Arial, sans-serif;
-        max-width: 1200px;
+        font-family: "Arial", sans-serif;
+        max-width: 900px;
         margin: 0 auto;
         padding: 30px;
         background-color: #f5f5f5;
@@ -110,9 +107,13 @@
         font-size: 16px;
         font-weight: bold;
         border-radius: 5px;
-        transition: width 0.3s ease, opacity 0.5s ease-in;
+        transition: transform 0.3s ease-in-out, opacity 0.5s ease-in;
         color: white;
         text-align: center;
+        opacity: 0;
+      }
+      .gantt-block.show {
+        opacity: 1;
       }
       .idle {
         background: #ffcccc !important;
@@ -178,7 +179,7 @@
   <body>
     <div class="container">
       <h1>CPU Scheduling Simulator</h1>
-      <h3>Algorithm - Priority Scheduling (Preemptive)</h3>
+      <h3>Algorithm - Round Robin</h3>
 
       <!-- Gantt Chart Section -->
       <div class="gantt-heading">Gantt Chart</div>
@@ -190,21 +191,23 @@
         <div id="readyQueueSection"></div>
       </div>
 
-      <!-- Input Section: Generate Table -->
+      <!-- Input Section: Generate Table and Time Quantum -->
       <div class="input-section">
         <label style="font-size: 20px">Number of Processes:</label>
         <input type="number" id="processCount" min="1" value="3" />
+        &nbsp;&nbsp;
+        <label style="font-size: 20px">Time Quantum:</label>
+        <input type="number" id="timeQuantum" min="1" value="2" />
         <button onclick="createProcessTable()">Generate Table</button>
       </div>
 
-      <!-- Process Table with additional Priority column -->
+      <!-- Process Table -->
       <table id="processTable">
         <thead>
           <tr>
             <th>Process ID</th>
             <th>Arrival Time</th>
             <th>Burst Time</th>
-            <th>Priority</th>
             <th>Completion Time</th>
             <th>Waiting Time</th>
             <th>Turnaround Time</th>
@@ -217,7 +220,7 @@
 
       <!-- Control Row: Calculate, Speed, and Video Controls side by side -->
       <div class="control-row">
-        <button onclick="calculatePreemptive()">Calculate</button>
+        <button onclick="calculateRR()">Calculate</button>
         <div class="control-section">
           <label for="speedSelect" style="font-size: 20px">Speed:</label>
           <select
@@ -238,7 +241,7 @@
         </div>
       </div>
 
-      <!-- Performance Metrics displayed at the end -->
+      <!-- Performance Metrics -->
       <div class="metrics" id="metrics"></div>
     </div>
 
@@ -248,18 +251,18 @@
       let currentStepIndex = -1;
       let isPlaying = false;
       let speedMultiplier = 1.0; // default speed 1x
-      // Instead of pushing each time unit as a separate block,
-      // we now maintain an array of Gantt blocks with merged time units.
-      let ganttBlocks = [];
+      let ganttBlocks = []; // store DOM elements for each simulation step
       let currentReadyQueue = []; // tracks current ready queue (array of process IDs)
-      const baseLatency = 300; // base delay per time unit
-      const scaleFactor = 30; // pixels per time unit for block width
+      // Reduced baseLatency for smoother auto-play
+      const baseLatency = 200;
+      const scaleFactor = 30; // pixels per time unit for Gantt block width
 
       // Utility sleep function (non-blocking)
       function sleep(ms) {
         return new Promise((resolve) => setTimeout(resolve, ms));
       }
 
+      // Controlled sleep that waits in short intervals
       async function controlledSleep(ms) {
         const interval = 50;
         let elapsed = 0;
@@ -270,7 +273,7 @@
         }
       }
 
-      // Create process table rows
+      // Create table rows with input values; Completion, Waiting, and Turnaround cells are blank.
       function createProcessTable() {
         const count = parseInt(document.getElementById("processCount").value);
         const tbody = document.getElementById("tableBody");
@@ -283,9 +286,6 @@
             <td><input type="number" value="${Math.floor(
               Math.random() * 5 + 1
             )}" /></td>
-            <td><input type="number" value="${Math.floor(
-              Math.random() * 5 + 1
-            )}" /></td>
             <td></td>
             <td></td>
             <td></td>
@@ -294,55 +294,100 @@
         }
       }
 
-      // Compute simulation steps (each time unit) for preemptive scheduling.
-      function computeSimulationStepsPreemptive(processes) {
+      // Compute simulation steps for Round Robin scheduling.
+      // Merges consecutive idle intervals to ensure continuous Gantt flow.
+      function computeSimulationStepsRR(processes, quantum) {
         let steps = [];
         let time = 0;
+        // Initialize remaining burst and completion time for each process.
         processes.forEach((p) => {
           p.remaining = p.burst;
           p.completion = null;
         });
+        let readyQueue = [];
+        // Initially add processes that have arrived at time 0.
+        processes.forEach((p) => {
+          if (p.arrival <= time && p.remaining > 0) {
+            readyQueue.push(p);
+          }
+        });
 
         while (processes.some((p) => p.remaining > 0)) {
-          let available = processes.filter(
-            (p) => p.arrival <= time && p.remaining > 0
-          );
-          if (available.length === 0) {
-            steps.push({
-              type: "idle",
-              pid: "Idle",
-              start: time,
-              end: time + 1,
-              duration: 1,
-              readyQueue: [],
+          if (readyQueue.length === 0) {
+            // CPU is idle; jump to next arrival.
+            let nextArrival = Math.min(
+              ...processes
+                .filter((p) => p.remaining > 0 && p.arrival > time)
+                .map((p) => p.arrival)
+            );
+            // Merge idle steps if previous step was idle.
+            if (steps.length && steps[steps.length - 1].type === "idle") {
+              steps[steps.length - 1].end = nextArrival;
+              steps[steps.length - 1].duration += nextArrival - time;
+            } else {
+              steps.push({
+                type: "idle",
+                pid: "Idle",
+                start: time,
+                end: nextArrival,
+                duration: nextArrival - time,
+                readyQueue: [],
+              });
+            }
+            time = nextArrival;
+            processes.forEach((p) => {
+              if (
+                p.arrival <= time &&
+                p.remaining > 0 &&
+                !readyQueue.includes(p)
+              ) {
+                readyQueue.push(p);
+              }
             });
-            time++;
-            continue;
+          } else {
+            // Process from ready queue gets CPU.
+            let currentProcess = readyQueue.shift();
+            let execTime = Math.min(quantum, currentProcess.remaining);
+            let start = time;
+            let end = time + execTime;
+            steps.push({
+              type: "process",
+              pid: currentProcess.pid,
+              start: start,
+              end: end,
+              duration: execTime,
+              processIndex: currentProcess.index,
+              readyQueue: readyQueue.map((p) => p.pid),
+            });
+            time = end;
+            currentProcess.remaining -= execTime;
+            if (currentProcess.remaining === 0) {
+              currentProcess.completion = time;
+            }
+            // Add any new arrivals during [start, time].
+            processes.forEach((p) => {
+              if (
+                p.arrival > start &&
+                p.arrival <= time &&
+                p.remaining > 0 &&
+                !readyQueue.includes(p) &&
+                p !== currentProcess
+              ) {
+                readyQueue.push(p);
+              }
+            });
+            // If the process is not finished, requeue it.
+            if (currentProcess.remaining > 0) {
+              readyQueue.push(currentProcess);
+            }
           }
-          available.sort(
-            (a, b) => a.priority - b.priority || a.arrival - b.arrival
-          );
-          let selected = available[0];
-          steps.push({
-            type: "process",
-            pid: selected.pid,
-            start: time,
-            end: time + 1,
-            duration: 1,
-            processIndex: selected.index,
-            readyQueue: available.map((p) => p.pid),
-          });
-          selected.remaining -= 1;
-          if (selected.remaining === 0) {
-            selected.completion = time + 1;
-          }
-          time++;
         }
         return steps;
       }
 
+      // Global array to store process objects (each includes its table row element)
       let processes = [];
-      function calculatePreemptive() {
+      function calculateRR() {
         isPlaying = false;
         document.getElementById("playPauseBtn").textContent = "▶";
         document.getElementById("ganttChart").innerHTML = "";
@@ -360,18 +405,18 @@
             pid: cells[0].value,
             arrival: parseInt(cells[1].value),
             burst: parseInt(cells[2].value),
-            priority: parseInt(cells[3].value),
             index: index,
             rowElement: row,
           });
+          row.children[3].textContent = "";
           row.children[4].textContent = "";
           row.children[5].textContent = "";
-          row.children[6].textContent = "";
         });
-        simulationSteps = computeSimulationStepsPreemptive(processes);
+        const quantum = parseInt(document.getElementById("timeQuantum").value);
+        simulationSteps = computeSimulationStepsRR(processes, quantum);
       }
 
-      // Update ready queue display.
+      // Update the Ready Queue display.
       function updateReadyQueue(newQueue) {
         const readyQueueDiv = document.getElementById("readyQueueSection");
         Array.from(readyQueueDiv.children).forEach((item) => {
@@ -395,91 +440,44 @@
         currentReadyQueue = newQueue;
       }
 
-      // Apply a simulation step to the Gantt chart.
-      // Instead of always adding a new block, we merge consecutive steps.
+      // Apply a simulation step: add a block to the Gantt chart.
       function applyStep(step) {
         const ganttChart = document.getElementById("ganttChart");
-        // Check if we can merge with the last block.
-        let lastBlockObj = ganttBlocks[ganttBlocks.length - 1];
-        if (
-          lastBlockObj &&
-          lastBlockObj.data.pid === step.pid &&
-          lastBlockObj.data.type === step.type &&
-          lastBlockObj.data.end === step.start
-        ) {
-          // Extend the block.
-          lastBlockObj.data.end = step.end;
-          lastBlockObj.data.duration += step.duration;
-          lastBlockObj.block.style.width =
-            lastBlockObj.data.duration * scaleFactor + "px";
-          // Update the time labels.
-          let timeDiv = lastBlockObj.container.querySelector(".gantt-time");
-          timeDiv.innerHTML = `<span>${lastBlockObj.data.start}</span><span>${lastBlockObj.data.end}</span>`;
+        const blockContainer = document.createElement("div");
+        blockContainer.classList.add("gantt-container");
+        const blockDiv = document.createElement("div");
+        blockDiv.classList.add("gantt-block");
+        blockDiv.style.width = step.duration * scaleFactor + "px";
+        if (step.type === "idle") {
+          blockDiv.classList.add("idle");
         } else {
-          // Create a new block.
-          let container = document.createElement("div");
-          container.classList.add("gantt-container");
-          let block = document.createElement("div");
-          block.classList.add("gantt-block");
-          block.style.width = step.duration * scaleFactor + "px";
-          if (step.type === "idle") {
-            block.classList.add("idle");
-          } else {
-            const colors = [
-              "#1abc9c",
-              "#3498db",
-              "#9b59b6",
-              "#f39c12",
-              "#e67e22",
-            ];
-            block.style.backgroundColor =
-              colors[processes[step.processIndex].index % colors.length];
-          }
-          block.textContent = step.pid;
-          let timeDiv = document.createElement("div");
-          timeDiv.classList.add("gantt-time");
-          timeDiv.innerHTML = `<span>${step.start}</span><span>${step.end}</span>`;
-          container.appendChild(block);
-          container.appendChild(timeDiv);
-          ganttChart.appendChild(container);
-          // Store block data for potential merging.
-          ganttBlocks.push({
-            container: container,
-            block: block,
-            data: {
-              type: step.type,
-              pid: step.pid,
-              start: step.start,
-              end: step.end,
-              duration: step.duration,
-              processIndex: step.processIndex,
-            },
-          });
+          const colors = [
+            "#1abc9c",
+            "#3498db",
+            "#9b59b6",
+            "#f39c12",
+            "#e67e22",
+          ];
+          blockDiv.style.backgroundColor =
+            colors[processes[step.processIndex].index % colors.length];
         }
-        updateReadyQueue(step.readyQueue || []);
+        blockDiv.textContent = step.pid;
+        const timeDiv = document.createElement("div");
+        timeDiv.classList.add("gantt-time");
+        timeDiv.innerHTML = `<span>${step.start}</span><span>${step.end}</span>`;
+        blockContainer.appendChild(blockDiv);
+        blockContainer.appendChild(timeDiv);
+        ganttChart.appendChild(blockContainer);
+        setTimeout(() => blockDiv.classList.add("show"), 50);
+        ganttBlocks.push(blockContainer);
+        updateReadyQueue(step.readyQueue);
       }
 
-      // Remove a simulation step from the Gantt chart.
+      // Remove a simulation step (for stepping backward).
       function removeStep(step) {
-        // Remove the step from the merged block.
-        let lastBlockObj = ganttBlocks[ganttBlocks.length - 1];
-        if (!lastBlockObj) return;
-        if (
-          lastBlockObj.data.pid === step.pid &&
-          lastBlockObj.data.type === step.type &&
-          lastBlockObj.data.duration > 1
-        ) {
-          // Reduce the duration by one time unit.
-          lastBlockObj.data.duration -= 1;
-          lastBlockObj.data.end -= 1;
-          lastBlockObj.block.style.width =
-            lastBlockObj.data.duration * scaleFactor + "px";
-          let timeDiv = lastBlockObj.container.querySelector(".gantt-time");
-          timeDiv.innerHTML = `<span>${lastBlockObj.data.start}</span><span>${lastBlockObj.data.end}</span>`;
-        } else {
-          // Remove the block completely.
-          let removed = ganttBlocks.pop();
-          if (removed) removed.container.remove();
+        const removed = ganttBlocks.pop();
+        if (removed) {
+          removed.remove();
         }
       }
 
@@ -514,22 +512,21 @@
           forwardStep();
           let step = simulationSteps[currentStepIndex];
           let delay = (step.duration * baseLatency) / speedMultiplier;
-          delay = Math.max(delay, 300);
+          delay = Math.max(delay, 200);
           await controlledSleep(delay);
         }
+        // After simulation ends, compute final performance metrics.
         if (currentStepIndex === simulationSteps.length - 1) {
-          // Clear the ready queue after simulation ends.
-          updateReadyQueue([]);
           let totalWaiting = 0,
             totalTurnaround = 0;
           processes.forEach((p) => {
-            let waiting = p.completion - p.arrival - p.burst;
             let turnaround = p.completion - p.arrival;
+            let waiting = turnaround - p.burst;
             totalWaiting += waiting;
             totalTurnaround += turnaround;
-            p.rowElement.children[4].textContent = p.completion;
-            p.rowElement.children[5].textContent = waiting;
-            p.rowElement.children[6].textContent = turnaround;
+            p.rowElement.children[3].textContent = p.completion;
+            p.rowElement.children[4].textContent = waiting;
+            p.rowElement.children[5].textContent = turnaround;
           });
           document.getElementById("metrics").innerHTML = `
             <h3>Performance Metrics:</h3>
