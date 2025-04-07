@@ -181,9 +181,28 @@
       <h1>CPU Scheduling Simulator</h1>
       <h3>Algorithm - First Come First Serve (FCFS)</h3>
 
-      <!-- Gantt Chart Section (moved above table) -->
+      <!-- Gantt Chart Section -->
       <div class="gantt-heading">Gantt Chart</div>
       <div class="gantt-chart" id="ganttChart"></div>
+
+      <!-- Control Section moved below Gantt chart -->
+      <div class="control-row">
+        <div class="video-controls">
+          <button onclick="rewindSimulation()">⏮</button>
+          <button onclick="backwardStep()">⏪</button>
+          <button id="playPauseBtn" onclick="togglePlayPause()">▶</button>
+          <button onclick="forwardStep()">⏩</button>
+        </div>
+        <div class="control-section">
+          <label for="speedSelect" style="font-size: 20px">Speed:</label>
+          <select id="speedSelect" class="speed-control" onchange="setSpeed(parseFloat(this.value))">
+            <option value="0.5">0.5x</option>
+            <option value="1" selected>1x</option>
+            <option value="1.5">1.5x</option>
+            <option value="2">2x</option>
+          </select>
+        </div>
+      </div>
 
       <!-- Ready Queue Section (moved above table) -->
       <div class="ready-queue-section">
@@ -196,6 +215,7 @@
         <label style="font-size: 20px">Number of Processes:</label>
         <input type="number" id="processCount" min="1" value="3" />
         <button onclick="createProcessTable()">Generate Table</button>
+        <button onclick="calculateAndStartSimulation()">Calculate</button>
       </div>
 
       <!-- Process Table -->
@@ -214,29 +234,6 @@
           <!-- Table rows are generated dynamically -->
         </tbody>
       </table>
-
-      <!-- Control Row: Calculate, Speed, and Video Controls side by side -->
-      <div class="control-row">
-        <button onclick="calculateSJF()">Calculate</button>
-        <div class="control-section">
-          <label for="speedSelect" style="font-size: 20px">Speed:</label>
-          <select
-            id="speedSelect"
-            class="speed-control"
-            onchange="setSpeed(parseFloat(this.value))">
-            <option value="0.5">0.5x</option>
-            <option value="1" selected>1x</option>
-            <option value="1.5">1.5x</option>
-            <option value="2">2x</option>
-          </select>
-        </div>
-        <div class="video-controls">
-          <button onclick="rewindSimulation()">⏮</button>
-          <button onclick="backwardStep()">⏪</button>
-          <button id="playPauseBtn" onclick="togglePlayPause()">▶</button>
-          <button onclick="forwardStep()">⏩</button>
-        </div>
-      </div>
 
       <!-- Performance Metrics displayed at the end -->
       <div class="metrics" id="metrics"></div>
@@ -527,6 +524,14 @@
 
       function setSpeed(multiplier) {
         speedMultiplier = multiplier;
+      }
+
+      // Add the calculateAndStartSimulation function
+      function calculateAndStartSimulation() {
+        calculateSJF();
+        if (simulationSteps.length > 0) {
+          playSimulation();
+        }
       }
 
       window.onload = createProcessTable;

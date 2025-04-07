@@ -184,40 +184,8 @@
       <div class="gantt-heading">Gantt Chart</div>
       <div class="gantt-chart" id="ganttChart"></div>
 
-      <!-- Ready Queue Section -->
-      <div class="ready-queue-section">
-        <h3>Ready Queue</h3>
-        <div id="readyQueueSection"></div>
-      </div>
-
-      <!-- Input Section: Generate Table -->
-      <div class="input-section">
-        <label style="font-size: 20px">Number of Processes:</label>
-        <input type="number" id="processCount" min="1" value="3" />
-        <button onclick="createProcessTable()">Generate Table</button>
-      </div>
-
-      <!-- Process Table with additional Priority column -->
-      <table id="processTable">
-        <thead>
-          <tr>
-            <th>Process ID</th>
-            <th>Arrival Time</th>
-            <th>Burst Time</th>
-            <th>Priority</th>
-            <th>Completion Time</th>
-            <th>Waiting Time</th>
-            <th>Turnaround Time</th>
-          </tr>
-        </thead>
-        <tbody id="tableBody">
-          <!-- Table rows are generated dynamically -->
-        </tbody>
-      </table>
-
-      <!-- Control Row: Calculate, Speed, and Video Controls side by side -->
-      <div class="control-row">
-        <button onclick="calculatePreemptive()">Calculate</button>
+      <!-- Video Controls below Gantt Chart -->
+      <div class="control-row" style="margin-top: 20px;">
         <div class="control-section">
           <label for="speedSelect" style="font-size: 20px">Speed:</label>
           <select
@@ -237,6 +205,38 @@
           <button onclick="forwardStep()">⏩</button>
         </div>
       </div>
+
+      <!-- Ready Queue Section -->
+      <div class="ready-queue-section">
+        <h3>Ready Queue</h3>
+        <div id="readyQueueSection"></div>
+      </div>
+
+      <!-- Input Section: Generate Table -->
+      <div class="input-section">
+        <label style="font-size: 20px">Number of Processes:</label>
+        <input type="number" id="processCount" min="1" value="3" />
+        <button onclick="createProcessTable()">Generate Table</button>
+        <button onclick="calculateAndPlay()">Calculate</button>
+      </div>
+
+      <!-- Process Table with additional Priority column -->
+      <table id="processTable">
+        <thead>
+          <tr>
+            <th>Process ID</th>
+            <th>Arrival Time</th>
+            <th>Burst Time</th>
+            <th>Priority</th>
+            <th>Completion Time</th>
+            <th>Waiting Time</th>
+            <th>Turnaround Time</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody">
+          <!-- Table rows are generated dynamically -->
+        </tbody>
+      </table>
 
       <!-- Performance Metrics displayed at the end -->
       <div class="metrics" id="metrics"></div>
@@ -556,6 +556,13 @@
 
       function setSpeed(multiplier) {
         speedMultiplier = multiplier;
+      }
+
+      // Add new function to combine calculate and play
+      async function calculateAndPlay() {
+        calculatePreemptive();
+        await sleep(100); // Small delay to ensure calculation is complete
+        playSimulation();
       }
 
       window.onload = createProcessTable;
