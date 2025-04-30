@@ -6,7 +6,8 @@
 ![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?logo=javascript&logoColor=black)
 
 A modern web-based visualization tool for understanding CPU scheduling algorithms through interactive simulations.
-
+## Website Link
+- https://asish-1611.github.io/Intelligent_CPU_Schedular/
 ## Features
 
 ### Home Page
